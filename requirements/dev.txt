@@ -1,0 +1,5 @@
+-r base.txt
+pytest>=8.0.0
+pytest-django>=4.8.0
+black>=24.0.0
+ruff>=0.3.0
