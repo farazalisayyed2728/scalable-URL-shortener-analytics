@@ -33,7 +33,9 @@ THIRD_PARTY_APPS = [
     "rest_framework",
 ]
 
+# 1. Update LOCAL_APPS to include apps.core
 LOCAL_APPS = [
+    "apps.core",
     "apps.accounts",
     "apps.links",
     "apps.analytics",
@@ -114,6 +116,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
     ],
+    "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
 }
 
 AUTH_USER_MODEL = "accounts.User"
@@ -122,3 +125,21 @@ AUTH_USER_MODEL = "accounts.User"
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 AUTH_USER_MODEL = "accounts.User"
+
+
+BASE_SHORT_URL = env("BASE_SHORT_URL", default="http://localhost:8000")
+CODE_LENGTH = env.int("CODE_LENGTH", default=7)
+MAX_CODE_RETRIES = env.int("MAX_CODE_RETRIES", default=5)
+MAX_URL_LENGTH = env.int("MAX_URL_LENGTH", default=2048)
+
+RESERVED_CODES = {
+    "api",
+    "admin",
+    "docs",
+    "static",
+    "health",
+    "login",
+    "register",
+    "favicon.ico",
+    "robots.txt",
+}
