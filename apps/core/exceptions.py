@@ -35,6 +35,17 @@ class URLValidationException(DomainException):
     message = "The submitted URL failed safety or syntax validation."
     http_status = status.HTTP_400_BAD_REQUEST
 
+class LinkNotFoundException(DomainException):
+    code = "LINK_NOT_FOUND"
+    message = "The requested short URL does not exist."
+    http_status = status.HTTP_404_NOT_FOUND
+
+
+class LinkExpiredException(DomainException):
+    code = "LINK_EXPIRED"
+    message = "This short link has expired or has been deactivated."
+    http_status = status.HTTP_410_GONE
+
 
 def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optional[Response]:
     """
