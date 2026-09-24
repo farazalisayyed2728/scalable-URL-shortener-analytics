@@ -5,8 +5,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponseRedirect, JsonResponse
 
+
 from django.http import HttpResponseRedirect
 from django.views import View
+
+from apps.core.exceptions import (
+    LinkNotFoundException,
+    LinkExpiredException,
+)
 
 from .services.resolver import resolve_short_code
 
@@ -49,7 +55,32 @@ class RedirectShortURLView(View):
 
     def get(self, request, short_code: str, *args, **kwargs):
 
-        destination_url = resolve_short_code(short_code)
+        try:
+            destination_url = resolve_short_code(short_code)
+
+        except LinkNotFoundException as exc:
+            return JsonResponse(
+                {
+                    "error": {
+                        "code": exc.code,
+                        "message": exc.message,
+                        "details": exc.details if exc.details else None,
+                    }
+                },
+                status=exc.http_status,
+            )
+
+        except LinkExpiredException as exc:
+            return JsonResponse(
+                {
+                    "error": {
+                        "code": exc.code,
+                        "message": exc.message,
+                        "details": exc.details if exc.details else None,
+                    }
+                },
+                status=exc.http_status,
+            )
 
         response = HttpResponseRedirect(
             redirect_to=destination_url
