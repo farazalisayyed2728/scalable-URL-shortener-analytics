@@ -4,6 +4,11 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.http import HttpResponseRedirect
+from django.views import View
+
+from .services.resolver import resolve_short_code
+
 from .serializers import (
     ShortURLCreateRequestSerializer,
     ShortURLResponseSerializer,
@@ -37,3 +42,23 @@ class ShortURLCreateAPIView(APIView):
         # 3. Serialize response model
         response_serializer = ShortURLResponseSerializer(short_url_instance)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class RedirectShortURLView(View):
+
+    def get(self, request, short_code: str, *args, **kwargs):
+
+        destination_url = resolve_short_code(short_code)
+
+        response = HttpResponseRedirect(
+            redirect_to=destination_url
+        )
+
+        response["Cache-Control"] = (
+            "no-store, no-cache, private, "
+            "must-revalidate, max-age=0"
+        )
+
+        response["Pragma"] = "no-cache"
+
+        return response
