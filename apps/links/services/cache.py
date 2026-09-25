@@ -1,113 +1,113 @@
+import json
 import logging
 import random
-from typing import Optional
 
 import redis
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-
-def get_redis_client():
-    """
-    Creates and returns a Redis client.
-    """
-    return redis.from_url(
-        settings.REDIS_URL,
-        decode_responses=True,
-    )
+redis_client = redis.from_url(
+    settings.REDIS_URL,
+    decode_responses=True,
+)
 
 
-def get_cached_url(short_code: str) -> Optional[str]:
+def get_cached_url_data(short_code: str):
     """
     Returns cached URL data.
 
     Returns:
-        - URL string if cache hit
-        - "__404__" if negative cache hit
-        - None if cache miss or Redis unavailable
+        dict     -> cache hit
+        "__404__" -> negative cache hit
+        None     -> cache miss / Redis unavailable
     """
 
     key = f"short:{short_code}"
 
     try:
-        client = get_redis_client()
-        return client.get(key)
+        value = redis_client.get(key)
+
+        if value is None:
+            return None
+
+        if value == settings.NEGATIVE_CACHE_SENTINEL:
+            return value
+
+        return json.loads(value)
 
     except redis.RedisError as exc:
-        logger.warning(
-            "Redis unavailable while reading key %s: %s",
-            key,
-            exc,
-        )
+        logger.warning("Redis GET failed: %s", exc)
         return None
 
 
 def cache_url(
     short_code: str,
     original_url: str,
-) -> bool:
+    is_active: bool,
+    expires_at,
+):
     """
-    Stores a URL in Redis with TTL jitter.
+    Store URL information in Redis with TTL jitter.
     """
 
     key = f"short:{short_code}"
+
+    payload = {
+        "original_url": original_url,
+        "is_active": is_active,
+        "expires_at": expires_at.isoformat() if expires_at else None,
+    }
 
     base_ttl = settings.CACHE_TTL_SECONDS
     jitter_pct = settings.CACHE_TTL_JITTER_PCT
 
-    jitter = int(base_ttl * jitter_pct / 100)
+    jitter = random.uniform(
+        -jitter_pct,
+        jitter_pct,
+    ) / 100
 
-    ttl = random.randint(
-        base_ttl - jitter,
-        base_ttl + jitter,
-    )
+    ttl = int(base_ttl * (1 + jitter))
 
     try:
-        client = get_redis_client()
-
-        client.set(
+        redis_client.setex(
             key,
-            original_url,
-            ex=ttl,
+            ttl,
+            json.dumps(payload),
         )
-
-        return True
 
     except redis.RedisError as exc:
-        logger.warning(
-            "Redis unavailable while caching key %s: %s",
-            key,
-            exc,
-        )
-        return False
+        logger.warning("Redis SET failed: %s", exc)
 
 
-def cache_not_found(short_code: str) -> bool:
+def cache_not_found(short_code: str):
     """
-    Stores a negative-cache entry for a short period.
-
-    This prevents repeated database queries
-    for non-existent short codes.
+    Negative cache for non-existent short codes.
     """
 
     key = f"short:{short_code}"
 
     try:
-        client = get_redis_client()
-
-        client.set(
+        redis_client.setex(
             key,
+            settings.NEGATIVE_CACHE_TTL_SECONDS,
             settings.NEGATIVE_CACHE_SENTINEL,
-            ex=settings.NEGATIVE_CACHE_TTL_SECONDS,
         )
-
-        return True
 
     except redis.RedisError as exc:
-        logger.warning(
-            "Redis unavailable while caching negative result %s: %s",
-            key,
-            exc,
-        )
-        return False
+        logger.warning("Redis negative cache failed: %s", exc)
+
+
+def delete_cached_url(short_code: str):
+    """
+    Delete cached short URL.
+    Useful later for cache invalidation.
+    """
+
+    key = f"short:{short_code}"
+
+    try:
+        redis_client.delete(key)
+
+    except redis.RedisError as exc:
+        logger.warning("Redis DELETE failed: %s", exc)
