@@ -143,3 +143,28 @@ RESERVED_CODES = {
     "favicon.ico",
     "robots.txt",
 }
+
+
+# Redis Caching Settings
+
+REDIS_URL = env(
+    "REDIS_URL",
+    default="redis://127.0.0.1:6379/0"
+)
+
+CACHE_TTL_SECONDS = env.int(
+    "CACHE_TTL_SECONDS",
+    default=86400
+)
+
+CACHE_TTL_JITTER_PCT = env.int(
+    "CACHE_TTL_JITTER_PCT",
+    default=10
+)
+
+NEGATIVE_CACHE_TTL_SECONDS = env.int(
+    "NEGATIVE_CACHE_TTL_SECONDS",
+    default=60
+)
+
+NEGATIVE_CACHE_SENTINEL = "__404__"
