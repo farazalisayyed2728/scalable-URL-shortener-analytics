@@ -7,12 +7,10 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-
 redis_client = redis.from_url(
     settings.REDIS_URL,
     decode_responses=True,
 )
-
 
 def build_short_url_cache_key(short_code: str) -> str:
     """
