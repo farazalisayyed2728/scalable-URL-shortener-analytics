@@ -74,6 +74,8 @@ def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optiona
     # 2. Delegate to DRF's standard handler for framework exceptions (e.g. ValidationError, NotAuthenticated)
     response = exception_handler(exc, context)
 
+
+
     if response is not None:
         error_code = "VALIDATION_ERROR"
         if response.status_code == status.HTTP_404_NOT_FOUND:
@@ -85,10 +87,17 @@ def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optiona
         elif response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
             error_code = "RATE_LIMITED"
 
-        # Extract message summary from standard DRF errors
         details = response.data
         message = "Request validation failed."
-        if isinstance(details, dict) and "detail" in details:
+        
+        # If rate limited, format message to show wait duration
+        if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+            wait_seconds = getattr(exc, "wait", None)
+            if wait_seconds:
+                message = f"Too many requests. Try again in {int(wait_seconds)} seconds."
+            else:
+                message = "Too many requests. Please slow down."
+        elif isinstance(details, dict) and "detail" in details:
             message = str(details.pop("detail"))
 
         response.data = {
