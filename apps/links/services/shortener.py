@@ -4,6 +4,8 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
+from .cache import delete_cached_url
+
 from apps.core.exceptions import (
     CodeAlreadyTakenException,
     CodeGenerationFailedException,
@@ -16,6 +18,7 @@ User = get_user_model()
 
 
 def create_short_url(
+    
     *,
     original_url: str,
     owner: Optional[User] = None,
@@ -41,9 +44,13 @@ def create_short_url(
                     is_custom=True,
                     expires_at=expires_at,
                 )
+# Inside create_short_url, right before returning the instance in Case A (Custom Code):
         except IntegrityError:
-            # PostgreSQL UNIQUE constraint was violated
             raise CodeAlreadyTakenException()
+        else:
+            # Clear any negative cache entry created if someone previously hit this code
+            delete_cached_url(valid_custom_code)
+            return link_instance
 
     # 3. Case B: Random short-code generation with collision retry loop
     max_retries = settings.MAX_CODE_RETRIES
@@ -63,8 +70,12 @@ def create_short_url(
                     is_custom=False,
                     expires_at=expires_at,
                 )
+# And similarly in Case B (Random Code), right after successful creation:
         except IntegrityError:
-            continue  # Collision occurred; retry with fresh code
-
+            continue
+        else:
+            delete_cached_url(generated_code)
+            return link_instance
+        
     # 4. If all retry attempts collided, raise 503
     raise CodeGenerationFailedException()
