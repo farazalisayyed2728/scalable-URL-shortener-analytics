@@ -168,3 +168,15 @@ NEGATIVE_CACHE_TTL_SECONDS = env.int(
 )
 
 NEGATIVE_CACHE_SENTINEL = "__404__"
+
+
+# In config/settings/base.py:
+
+# Rate Limiting Configuration
+RATE_LIMIT_CREATE_PER_MIN = env.int("RATE_LIMIT_CREATE_PER_MIN", default=100)
+RATE_LIMIT_FAIL_OPEN = env.bool("RATE_LIMIT_FAIL_OPEN", default=True)
+
+# Reverse Proxy Security
+# Set to 1 if behind 1 trusted reverse proxy (e.g., Nginx, AWS ALB, Cloudflare)
+# Set to 0 if running directly exposed (e.g., local development without proxy)
+NUM_PROXIES = env.int("NUM_PROXIES", default=0)
