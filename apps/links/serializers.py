@@ -39,3 +39,20 @@ class ShortURLResponseSerializer(serializers.Serializer):
         # Constructs: http://localhost:8000/<short_code>
         base = settings.BASE_SHORT_URL.rstrip("/")
         return f"{base}/{obj.short_code}"
+
+
+
+class ShortURLUpdateSerializer(serializers.Serializer):
+    """
+    Validates partial update fields for an existing ShortURL.
+    short_code and owner are strictly immutable.
+    """
+    original_url = serializers.URLField(max_length=2048, required=False)
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
+
+    def validate_expires_at(self, value):
+        from django.utils import timezone
+        if value and value <= timezone.now():
+            raise serializers.ValidationError("Expiration date must be in the future.")
+        return value
