@@ -23,6 +23,7 @@ from .serializers import (
 )
 from .services.updater import soft_delete_short_url, update_short_url
 
+from apps.core.throttling import CreateURLRateThrottle 
 from .services.resolver import resolve_short_code
 
 from .serializers import (
@@ -35,19 +36,18 @@ from .services.shortener import create_short_url
 class ShortURLCreateAPIView(APIView):
     """
     Endpoint: POST /api/urls/
-    Creates a new short URL. Open to both anonymous and authenticated users.
+    Creates a new short URL. Throttled to 100 requests/minute/IP.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [CreateURLRateThrottle]  # Attach Rate Limiter
 
     def post(self, request: Request) -> Response:
-        # 1. Validate payload structure using Serializer
         serializer = ShortURLCreateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         validated_data = serializer.validated_data
         owner = request.user if request.user.is_authenticated else None
 
-        # 2. Delegate creation, collision handling, and DB storage to Service Layer
         short_url_instance = create_short_url(
             original_url=validated_data["original_url"],
             owner=owner,
@@ -55,9 +55,16 @@ class ShortURLCreateAPIView(APIView):
             expires_at=validated_data.get("expires_at"),
         )
 
-        # 3. Serialize response model
         response_serializer = ShortURLResponseSerializer(short_url_instance)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        response = Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+        # Inject rate limit telemetry headers into the response
+        if hasattr(request, "rate_limit_limit"):
+            response["X-RateLimit-Limit"] = str(request.rate_limit_limit)
+            response["X-RateLimit-Remaining"] = str(request.rate_limit_remaining)
+            response["X-RateLimit-Reset"] = str(request.rate_limit_reset)
+
+        return response
 
 
 class RedirectShortURLView(View):
@@ -140,3 +147,7 @@ class ShortURLDetailUpdateDeleteAPIView(APIView):
     def delete(self, request: Request, short_code: str) -> Response:
         soft_delete_short_url(short_code)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+ # Import the custom throttle class
+
