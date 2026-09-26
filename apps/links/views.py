@@ -14,6 +14,15 @@ from apps.core.exceptions import (
     LinkExpiredException,
 )
 
+from apps.core.exceptions import LinkNotFoundException
+from apps.links.models import ShortURL
+from .serializers import (
+    ShortURLCreateRequestSerializer,
+    ShortURLResponseSerializer,
+    ShortURLUpdateSerializer,
+)
+from .services.updater import soft_delete_short_url, update_short_url
+
 from .services.resolver import resolve_short_code
 
 from .serializers import (
@@ -94,3 +103,40 @@ class RedirectShortURLView(View):
         response["Pragma"] = "no-cache"
 
         return response
+
+from .services.updater import soft_delete_short_url, update_short_url
+
+
+class ShortURLDetailUpdateDeleteAPIView(APIView):
+    """
+    Endpoint: /api/urls/<short_code>/
+    - GET: Retrieve metadata for a short URL
+    - PATCH: Update destination URL, expiration, or active status
+    - DELETE: Soft-delete/deactivate URL (sets is_active=False)
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request, short_code: str) -> Response:
+        try:
+            link = ShortURL.objects.get(short_code=short_code)
+        except ShortURL.DoesNotExist:
+            raise LinkNotFoundException()
+
+        serializer = ShortURLResponseSerializer(link)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request: Request, short_code: str) -> Response:
+        serializer = ShortURLUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        updated_link = update_short_url(
+            short_code=short_code,
+            **serializer.validated_data,
+        )
+
+        response_serializer = ShortURLResponseSerializer(updated_link)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request: Request, short_code: str) -> Response:
+        soft_delete_short_url(short_code)
+        return Response(status=status.HTTP_204_NO_CONTENT)
