@@ -10,3 +10,4 @@ urlpatterns = [
     path("urls/", ShortURLCreateAPIView.as_view(), name="url-create"),
     path("urls/<str:short_code>/", ShortURLDetailUpdateDeleteAPIView.as_view(), name="url-detail-update-delete"),
 ]
+
