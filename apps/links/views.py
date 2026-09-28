@@ -113,31 +113,39 @@ class RedirectShortURLView(View):
 
 from .services.updater import soft_delete_short_url, update_short_url
 
+# In apps/links/views.py:
+
+from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
+# (Replace AllowAny or adjust permissions on detail view)
 
 class ShortURLDetailUpdateDeleteAPIView(APIView):
     """
     Endpoint: /api/urls/<short_code>/
-    - GET: Retrieve metadata for a short URL
-    - PATCH: Update destination URL, expiration, or active status
-    - DELETE: Soft-delete/deactivate URL (sets is_active=False)
+    Enforces object-level resource ownership. Non-owners receive 404 Not Found.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request: Request, short_code: str) -> Response:
         try:
-            link = ShortURL.objects.get(short_code=short_code)
+            # Security: Scope query strictly to request.user
+            link = ShortURL.objects.get(short_code=short_code, owner=request.user)
         except ShortURL.DoesNotExist:
-            raise LinkNotFoundException()
+            raise LinkNotFoundException()  # Returns 404, preventing existence leak
 
         serializer = ShortURLResponseSerializer(link)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request: Request, short_code: str) -> Response:
+        try:
+            link = ShortURL.objects.get(short_code=short_code, owner=request.user)
+        except ShortURL.DoesNotExist:
+            raise LinkNotFoundException()
+
         serializer = ShortURLUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
         updated_link = update_short_url(
-            short_code=short_code,
+            short_code=link.short_code,
             **serializer.validated_data,
         )
 
@@ -145,9 +153,10 @@ class ShortURLDetailUpdateDeleteAPIView(APIView):
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     def delete(self, request: Request, short_code: str) -> Response:
-        soft_delete_short_url(short_code)
+        try:
+            link = ShortURL.objects.get(short_code=short_code, owner=request.user)
+        except ShortURL.DoesNotExist:
+            raise LinkNotFoundException()
+
+        soft_delete_short_url(link.short_code)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
- # Import the custom throttle class
-
