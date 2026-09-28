@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 import environ
 
+from datetime import timedelta
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # Path(__file__).resolve().parent.parent.parent targets the project root.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -31,6 +33,7 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "rest_framework",
+    "rest_framework_simplejwt",
 ]
 
 # 1. Update LOCAL_APPS to include apps.core
@@ -116,13 +119,20 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
     ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
     "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
 }
 
-AUTH_USER_MODEL = "accounts.User"
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 AUTH_USER_MODEL = "accounts.User"
 
