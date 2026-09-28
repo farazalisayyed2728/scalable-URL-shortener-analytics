@@ -194,20 +194,33 @@ NUM_PROXIES = env.int("NUM_PROXIES", default=0)
 
 # In config/settings/base.py:
 
-PAGE_SIZE_DEFAULT = env.int("PAGE_SIZE_DEFAULT", default=20)[cite: 2]
-PAGE_SIZE_MAX = env.int("PAGE_SIZE_MAX", default=100)[cite: 2]
+PAGE_SIZE_DEFAULT = env.int("PAGE_SIZE_DEFAULT", default=20)
+
+PAGE_SIZE_MAX = env.int("PAGE_SIZE_MAX", default=100)
 
 REST_FRAMEWORK = {
-    "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
-    ],
-    "DEFAULT_PARSER_CLASSES": [
-        "rest_framework.parsers.JSONParser",
-    ],
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ],
-    "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPageNumberPagination",
-    "PAGE_SIZE": PAGE_SIZE_DEFAULT,
-    "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
+"DEFAULT_RENDERER_CLASSES": [
+"rest_framework.renderers.JSONRenderer",
+],
+
+
+"DEFAULT_PARSER_CLASSES": [
+    "rest_framework.parsers.JSONParser",
+],
+
+"DEFAULT_AUTHENTICATION_CLASSES": [
+    "rest_framework_simplejwt.authentication.JWTAuthentication",
+],
+
+"DEFAULT_PAGINATION_CLASS": (
+    "apps.core.pagination.StandardPageNumberPagination"
+),
+
+"PAGE_SIZE": PAGE_SIZE_DEFAULT,
+
+"EXCEPTION_HANDLER": (
+    "apps.core.exceptions.custom_exception_handler"
+),
+
+
 }
