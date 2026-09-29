@@ -225,3 +225,30 @@ REST_FRAMEWORK = {
 
 }
 
+# -------------------------------------------------------------
+# Celery Configuration
+# -------------------------------------------------------------
+# Broker: Redis Database 1 (Decoupled from Cache on DB 0)
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/1")
+
+# We do not need to store task return values for analytics click ingestion
+CELERY_RESULT_BACKEND = None
+CELERY_IGNORE_RESULT = True
+
+# Message Serialization: Strict JSON
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# Reliability & Concurrency Invariants
+# 1. Late Acknowledgement: ack task ONLY after execution completes without crash
+CELERY_TASK_ACKS_LATE = True
+
+# 2. Fair Dispatching: Worker pulls only 1 task at a time instead of hoarding 4.
+# Prevents head-of-line blocking if one task takes longer than others.
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+# 3. Connection retry on startup
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
