@@ -25,8 +25,13 @@ class ResilientCallbackTask(Task):
 
         Acts as our Dead Letter Queue (DLQ) handler.
         """
-        event_id = kwargs.get("event_id")
         short_code = kwargs.get("short_code")
+        if short_code is None and args:
+            short_code = args[0]
+
+        event_id = kwargs.get("event_id")
+        if event_id is None and len(args) > 1:
+            event_id = args[1]
 
         logger.critical(
             "task_dead_letter_quarantine",
@@ -64,6 +69,11 @@ def record_click_event(
     user_agent: str = "",
     referrer: Optional[str] = None,
     clicked_at_str: Optional[str] = None,
+    country_code: Optional[str] = None,
+    device_type: Optional[str] = None,
+    browser: Optional[str] = None,
+    os: Optional[str] = None,
+    is_bot: bool = False,
 ) -> None:
     """
     Resilient background task that logs click events with:
@@ -76,16 +86,6 @@ def record_click_event(
     # -------------------------------------------------------------
     # Step 1: Idempotency verification
     # -------------------------------------------------------------
-    if Click.objects.filter(event_id=event_id).exists():
-        logger.warning(
-            "duplicate_click_event_ignored",
-            extra={
-                "event_id": event_id,
-                "short_code": short_code,
-            },
-        )
-        return
-
     clicked_at = (
         parse_datetime(clicked_at_str)
         if clicked_at_str
@@ -96,6 +96,16 @@ def record_click_event(
     # Step 2: Ingest with controlled retries and jitter
     # -------------------------------------------------------------
     try:
+        if Click.objects.filter(event_id=event_id).exists():
+            logger.warning(
+                "duplicate_click_event_ignored",
+                extra={
+                    "event_id": event_id,
+                    "short_code": short_code,
+                },
+            )
+            return
+
         Click.objects.create(
             event_id=event_id,
             short_code=short_code,
@@ -103,6 +113,11 @@ def record_click_event(
             user_agent=user_agent or "",
             referrer=referrer,
             clicked_at=clicked_at,
+            country_code=country_code,
+            device_type=device_type,
+            browser=browser,
+            os=os,
+            is_bot=is_bot,
         )
 
         logger.info(
@@ -127,6 +142,9 @@ def record_click_event(
         return
 
     except Exception as exc:
+        if self.request.retries >= self.max_retries:
+            raise
+
         current_attempt = self.request.retries + 1
 
         base_delay = 2
@@ -135,7 +153,7 @@ def record_click_event(
         # sleep = random(0, base_delay * 2^retries)
         max_backoff = base_delay * (2 ** self.request.retries)
         jittered_delay = random.uniform(
-            0.5,
+            0,
             max_backoff,
         )
 
@@ -155,5 +173,4 @@ def record_click_event(
             exc=exc,
             countdown=jittered_delay,
         )
-
 

@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from django.utils import timezone
 
@@ -15,7 +17,7 @@ def test_record_click_event_task_execution():
     now_str = timezone.now().isoformat()
 
     result = record_click_event.apply(
-        args=[code],
+        args=[code, str(uuid.uuid4())],
         kwargs={
             "ip_address": "203.0.113.195",
             "user_agent": "Mozilla/5.0 PyTest Runner",
