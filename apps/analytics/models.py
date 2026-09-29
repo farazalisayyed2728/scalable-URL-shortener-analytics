@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
 
@@ -5,48 +7,55 @@ from django.utils import timezone
 class Click(models.Model):
     id = models.BigAutoField(primary_key=True)
 
-    short_code = models.CharField(max_length=32)
+    # Idempotency token: prevents duplicate logging on task re-delivery
+    event_id = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        db_index=True,
+        editable=False,
+    )
 
+    short_code = models.CharField(max_length=32)
     clicked_at = models.DateTimeField(default=timezone.now)
 
     ip_address = models.GenericIPAddressField(
         null=True,
-        blank=True
+        blank=True,
     )
 
     user_agent = models.TextField(
         blank=True,
-        default=""
+        default="",
     )
 
     referrer = models.CharField(
         max_length=2048,
         null=True,
-        blank=True
+        blank=True,
     )
 
     country_code = models.CharField(
         max_length=2,
         null=True,
-        blank=True
+        blank=True,
     )
 
     device_type = models.CharField(
         max_length=16,
         null=True,
-        blank=True
+        blank=True,
     )
 
     browser = models.CharField(
         max_length=32,
         null=True,
-        blank=True
+        blank=True,
     )
 
     os = models.CharField(
         max_length=32,
         null=True,
-        blank=True
+        blank=True,
     )
 
     is_bot = models.BooleanField(default=False)
@@ -66,4 +75,4 @@ class Click(models.Model):
         ]
 
     def __str__(self):
-        return f"Click on {self.short_code} at {self.clicked_at}"
+        return f"Click: {self.short_code} ({self.event_id})"
