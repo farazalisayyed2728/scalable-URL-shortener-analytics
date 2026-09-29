@@ -68,7 +68,7 @@ def get_cached_url_data(short_code: str):
             return None
 
         if value == settings.NEGATIVE_CACHE_SENTINEL:
-            return value
+            return {"not_found": True}
 
         return json.loads(value)
 
