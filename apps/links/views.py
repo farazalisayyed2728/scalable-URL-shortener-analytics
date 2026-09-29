@@ -237,3 +237,59 @@ class ShortURLListCreateAPIView(APIView):
             response["X-RateLimit-Reset"] = str(request.rate_limit_reset)
 
         return response
+
+
+
+import logging
+from django.http import HttpResponseRedirect
+from django.utils import timezone
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+
+from apps.analytics.tasks import record_click_event
+from apps.core.ratelimit import get_client_ip
+from .services.resolver import resolve_short_code
+
+logger = logging.getLogger(__name__)
+
+
+class RedirectShortURLView(APIView):
+    """
+    Endpoint: GET /<short_code>
+    Resolves short code, asynchronously dispatches a click telemetry task to Celery,
+    and returns an immediate HTTP 302 Found response.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, short_code: str, *args, **kwargs):
+        # 1. Resolve destination URL (Cache-Aside via Redis DB 0 / PostgreSQL)
+        destination_url = resolve_short_code(short_code)
+
+        # 2. Extract telemetry metadata from the incoming HTTP request
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+        referrer = request.META.get("HTTP_REFERER")
+        clicked_at_str = timezone.now().isoformat()
+
+        # 3. Non-blocking Task Enqueue to Celery (Redis DB 1)
+        # Golden Rule: Never let telemetry or broker failures crash the redirect!
+        try:
+            record_click_event.delay(
+                short_code=short_code,
+                ip_address=client_ip,
+                user_agent=user_agent,
+                referrer=referrer,
+                clicked_at_str=clicked_at_str,
+            )
+        except Exception as exc:
+            # If the broker is unreachable, log the warning and proceed with redirect
+            logger.warning(
+                "telemetry_enqueue_failed",
+                extra={"short_code": short_code, "error": str(exc)},
+            )
+
+        # 4. Issue HTTP 302 Redirect with anti-caching headers
+        response = HttpResponseRedirect(redirect_to=destination_url)
+        response["Cache-Control"] = "no-store, no-cache, private, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
+        return response
