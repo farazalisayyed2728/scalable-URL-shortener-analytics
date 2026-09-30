@@ -1,7 +1,3 @@
-import logging
-import random
-from typing import Optional
-
 from celery import Task, shared_task
 from django.db import IntegrityError
 from django.utils import timezone
@@ -9,30 +5,26 @@ from django.utils.dateparse import parse_datetime
 
 from apps.analytics.models import Click
 
+import logging
+import random
+from typing import Optional
+from celery import Task, shared_task
+from django.db import IntegrityError
+from django.db.models import F
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+
+from apps.analytics.models import Click
+from apps.analytics.services.enrichment import parse_user_agent_metadata
+from apps.links.models import ShortURL
 
 logger = logging.getLogger(__name__)
 
 
 class ResilientCallbackTask(Task):
-    """
-    Custom base Celery Task providing DLQ handling and structured failure hooks.
-    """
-
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        """
-        Executed when a task exhausts all max_retries or encounters
-        a non-retryable exception.
-
-        Acts as our Dead Letter Queue (DLQ) handler.
-        """
-        short_code = kwargs.get("short_code")
-        if short_code is None and args:
-            short_code = args[0]
-
         event_id = kwargs.get("event_id")
-        if event_id is None and len(args) > 1:
-            event_id = args[1]
-
+        short_code = kwargs.get("short_code")
         logger.critical(
             "task_dead_letter_quarantine",
             extra={
@@ -41,17 +33,9 @@ class ResilientCallbackTask(Task):
                 "event_id": event_id,
                 "short_code": short_code,
                 "exception": str(exc),
-                "traceback": str(einfo),
             },
         )
-
-        super().on_failure(
-            exc,
-            task_id,
-            args,
-            kwargs,
-            einfo,
-        )
+        super().on_failure(exc, task_id, args, kwargs, einfo)
 
 
 @shared_task(
@@ -69,43 +53,29 @@ def record_click_event(
     user_agent: str = "",
     referrer: Optional[str] = None,
     clicked_at_str: Optional[str] = None,
-    country_code: Optional[str] = None,
-    device_type: Optional[str] = None,
-    browser: Optional[str] = None,
-    os: Optional[str] = None,
-    is_bot: bool = False,
 ) -> None:
     """
-    Resilient background task that logs click events with:
-
-    1. Idempotency guarantees using event_id.
-    2. Exponential backoff with full jitter on transient failures.
-    3. DLQ quarantine logging after retries are exhausted.
+    Ingests click event:
+    1. Enforces idempotency via event_id.
+    2. Enriches User-Agent metadata (device, browser, os, is_bot).
+    3. Persists Click record.
+    4. Atomically increments ShortURL.total_clicks via database F() expression.
     """
+    # 1. Idempotency Check
+    if Click.objects.filter(event_id=event_id).exists():
+        logger.warning(
+            "duplicate_click_event_ignored",
+            extra={"event_id": event_id, "short_code": short_code},
+        )
+        return
 
-    # -------------------------------------------------------------
-    # Step 1: Idempotency verification
-    # -------------------------------------------------------------
-    clicked_at = (
-        parse_datetime(clicked_at_str)
-        if clicked_at_str
-        else timezone.now()
-    )
+    clicked_at = parse_datetime(clicked_at_str) if clicked_at_str else timezone.now()
 
-    # -------------------------------------------------------------
-    # Step 2: Ingest with controlled retries and jitter
-    # -------------------------------------------------------------
+    # 2. Enrich Metadata
+    enrichment = parse_user_agent_metadata(user_agent)
+
+    # 3. Insert Click Record
     try:
-        if Click.objects.filter(event_id=event_id).exists():
-            logger.warning(
-                "duplicate_click_event_ignored",
-                extra={
-                    "event_id": event_id,
-                    "short_code": short_code,
-                },
-            )
-            return
-
         Click.objects.create(
             event_id=event_id,
             short_code=short_code,
@@ -113,64 +83,29 @@ def record_click_event(
             user_agent=user_agent or "",
             referrer=referrer,
             clicked_at=clicked_at,
-            country_code=country_code,
-            device_type=device_type,
-            browser=browser,
-            os=os,
-            is_bot=is_bot,
+            device_type=enrichment["device_type"],
+            browser=enrichment["browser"],
+            os=enrichment["os"],
+            is_bot=enrichment["is_bot"],
+        )
+        
+        # 4. Atomic Counter Increment (Prevents Lost Updates)
+        ShortURL.objects.filter(short_code=short_code).update(
+            total_clicks=F("total_clicks") + 1
         )
 
         logger.info(
             "click_event_ingested",
-            extra={
-                "event_id": event_id,
-                "short_code": short_code,
-            },
+            extra={"event_id": event_id, "short_code": short_code},
         )
-
     except IntegrityError:
-        # Race condition: two identical tasks may pass the
-        # existence check concurrently. The DB unique constraint
-        # on event_id guarantees only one can be inserted.
         logger.warning(
             "event_id_unique_violation_ignored",
-            extra={
-                "event_id": event_id,
-                "short_code": short_code,
-            },
+            extra={"event_id": event_id, "short_code": short_code},
         )
         return
-
     except Exception as exc:
-        if self.request.retries >= self.max_retries:
-            raise
-
-        current_attempt = self.request.retries + 1
-
         base_delay = 2
-
-        # Full jitter:
-        # sleep = random(0, base_delay * 2^retries)
         max_backoff = base_delay * (2 ** self.request.retries)
-        jittered_delay = random.uniform(
-            0,
-            max_backoff,
-        )
-
-        logger.warning(
-            "click_ingestion_transient_failure_retrying",
-            extra={
-                "event_id": event_id,
-                "short_code": short_code,
-                "attempt": current_attempt,
-                "max_retries": self.max_retries,
-                "backoff_seconds": f"{jittered_delay:.2f}",
-                "error": str(exc),
-            },
-        )
-
-        raise self.retry(
-            exc=exc,
-            countdown=jittered_delay,
-        )
-
+        jittered_delay = random.uniform(0.5, max_backoff)
+        raise self.retry(exc=exc, countdown=jittered_delay)
