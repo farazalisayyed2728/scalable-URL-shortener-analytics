@@ -5,6 +5,7 @@ from apps.links.views import RedirectShortURLView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.accounts.urls")),
+    path("api/", include("apps.analytics.urls")),
     path("api/", include("apps.links.urls")),
 
 re_path(
