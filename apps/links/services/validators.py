@@ -2,7 +2,9 @@ import ipaddress
 import re
 import socket
 from urllib.parse import urlparse
+
 from django.conf import settings
+
 from apps.core.exceptions import URLValidationException
 
 CUSTOM_CODE_REGEX = re.compile(r"^[A-Za-z0-9_-]{3,32}$")
@@ -52,8 +54,8 @@ def validate_original_url(url: str) -> str:
         raise URLValidationException("The provided URL has an invalid or missing host.")
 
     # 3. Prevent Self-Referencing Redirect Loops
-    base_domain = urlparse(settings.BASE_SHORT_URL).netloc.lower()
-    if parsed.netloc.lower() == base_domain:
+    base_hostname = urlparse(settings.BASE_SHORT_URL).hostname
+    if base_hostname and hostname.rstrip(".").lower() == base_hostname.rstrip(".").lower():
         raise URLValidationException("Shortening URLs targeting this service domain is prohibited.")
 
     # 4. SSRF Defense: Validate Host Against Private Subnets & Loopbacks
