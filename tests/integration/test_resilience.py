@@ -11,6 +11,7 @@ from apps.analytics.tasks import record_click_event
 class TestTaskResilienceAndIdempotency:
     def test_idempotent_duplicate_event_handling(self):
         event_id = str(uuid.uuid4())
+
         args = ["idempotent_test", event_id]
         kwargs = {
             "ip_address": "127.0.0.1",
@@ -43,10 +44,18 @@ class TestTaskResilienceAndIdempotency:
 
         assert result.failed()
         assert isinstance(result.result, RuntimeError)
+
+        # Initial attempt + 3 retries
         assert mock_create.call_count == record_click_event.max_retries + 1
+
+        # Backoff is calculated as:
+        # retry 0 -> 0.5 to 2
+        # retry 1 -> 0.5 to 4
+        # retry 2 -> 0.5 to 8
         assert mock_backoff.call_args_list == [
-            ((0, 2),),
-            ((0, 4),),
-            ((0, 8),),
+            ((0.5, 2),),
+            ((0.5, 4),),
+            ((0.5, 8),),
         ]
+
         mock_dlq.assert_called_once()
