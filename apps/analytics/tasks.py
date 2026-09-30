@@ -105,6 +105,9 @@ def record_click_event(
         )
         return
     except Exception as exc:
+        if self.request.retries >= self.max_retries:
+            raise
+
         base_delay = 2
         max_backoff = base_delay * (2 ** self.request.retries)
         jittered_delay = random.uniform(0.5, max_backoff)

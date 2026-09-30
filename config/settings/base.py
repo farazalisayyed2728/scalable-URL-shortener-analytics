@@ -34,6 +34,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
+    "corsheaders",
 ]
 
 # 1. Update LOCAL_APPS to include apps.core
@@ -48,6 +49,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -252,3 +254,21 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
 # 3. Connection retry on startup
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+BLOCK_PRIVATE_IPS = env.bool("BLOCK_PRIVATE_IPS", default=True)
+
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+)
+
+CORS_ALLOW_CREDENTIALS = True
+
+# 5. Baseline Security Headers
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
