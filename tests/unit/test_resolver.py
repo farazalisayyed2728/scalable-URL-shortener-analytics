@@ -14,3 +14,15 @@ def test_negative_cache_hit_raises_link_not_found():
     ):
         with pytest.raises(LinkNotFoundException):
             resolve_short_code("missing")
+
+
+def test_positive_cache_hit_returns_original_url():
+    with patch(
+        "apps.links.services.resolver.get_cached_url_data",
+        return_value={
+            "original_url": "https://example.com",
+            "is_active": True,
+            "expires_at": None,
+        },
+    ):
+        assert resolve_short_code("cached") == "https://example.com"

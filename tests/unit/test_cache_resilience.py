@@ -1,8 +1,14 @@
 from unittest.mock import patch
 import pytest
 import redis
+from django.conf import settings
 from apps.links.models import ShortURL
-from apps.links.services.cache import get_cached_url_data, set_cached_url_data
+from apps.links.services.cache import (
+    cache_not_found,
+    cache_url,
+    delete_cached_url,
+    get_cached_url_data,
+)
 from apps.links.services.resolver import resolve_short_code
 
 
@@ -29,12 +35,46 @@ class TestCacheResilienceAndGracefulDegradation:
 
     def test_redis_set_failure_does_not_break_execution(self):
         """Verify that a RedisError on cache write logs a warning but does not raise an exception."""
-        with patch("redis.Redis.set", side_effect=redis.TimeoutError("Redis socket write timeout")):
+        with patch("redis.Redis.setex", side_effect=redis.TimeoutError("Redis socket write timeout")):
             # Must not raise an exception
-            set_cached_url_data(
+            cache_url(
                 short_code="fail_set",
                 original_url="https://example.com",
                 is_active=True,
                 expires_at=None,
             )
-            
+
+    def test_cached_url_data_hit_returns_decoded_payload(self):
+        payload = '{"original_url": "https://example.com"}'
+        with patch("redis.Redis.get", return_value=payload):
+            assert get_cached_url_data("cached_code") == {
+                "original_url": "https://example.com"
+            }
+
+    def test_negative_cache_is_written(self):
+        with patch("redis.Redis.setex") as setex:
+            cache_not_found("missing_code")
+
+        setex.assert_called_once_with(
+            "short:missing_code",
+            settings.NEGATIVE_CACHE_TTL_SECONDS,
+            settings.NEGATIVE_CACHE_SENTINEL,
+        )
+
+    def test_negative_cache_failure_logs_warning(self, caplog):
+        with patch(
+            "redis.Redis.setex",
+            side_effect=redis.TimeoutError("Redis socket write timeout"),
+        ):
+            cache_not_found("missing_code")
+
+        assert "Redis negative cache failed" in caplog.text
+
+    def test_delete_cache_failure_logs_warning(self, caplog):
+        with patch(
+            "redis.Redis.delete",
+            side_effect=redis.ConnectionError("Redis connection refused"),
+        ):
+            delete_cached_url("cached_code")
+
+        assert "Redis DELETE failed" in caplog.text
