@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: shortlink_user
       POSTGRES_PASSWORD: shortlink_pass
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +16,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - shortlink_network
 
   redis:
     image: redis:7-alpine
@@ -29,7 +31,66 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - shortlink_network
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shortlink_web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override hostnames to use internal Docker DNS aliases
+      - DATABASE_URL=postgres://shortlink_user:shortlink_pass@db:5432/shortlink_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shortlink_network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shortlink_worker
+    restart: unless-stopped
+    # Override CMD to launch Celery worker instead of Gunicorn
+    command: ["celery", "-A", "config", "worker", "-l", "info"]
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://shortlink_user:shortlink_pass@db:5432/shortlink_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shortlink_network
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  shortlink_network:
+    driver: bridge
