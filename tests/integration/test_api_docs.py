@@ -1,9 +1,7 @@
-import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
 
 
-@pytest.mark.django_db
 class TestOpenAPIDocumentation:
 
     def test_openapi_schema_endpoint_generates_valid_spec(self):
@@ -16,6 +14,12 @@ class TestOpenAPIDocumentation:
         assert "ShortLink Scalable Backend API" in content
         assert "/api/urls/" in content
         assert "/api/auth/login/" in content
+        assert "/api/urls/{short_code}/analytics/" in content
+        assert "/api/urls/{short_code}/clicks/" in content
+        assert "/api/analytics/overview/" in content
+        assert "BearerAuth" in content
+        for tag in ("Authentication", "URLs", "Analytics", "Redirect"):
+            assert f"name: {tag}" in content
 
     def test_swagger_ui_endpoint_returns_200(self):
         """Verify GET /api/docs/ returns 200 OK and serves Swagger UI HTML."""

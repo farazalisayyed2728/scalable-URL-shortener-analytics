@@ -60,6 +60,8 @@ class ShortURLListCreateAPIView(APIView):
         return []
 
     @extend_schema(
+        operation_id="urls_list",
+        auth=[],
         summary="List user's shortened URLs",
         description=(
             "Returns a paginated list of short URLs owned by the "
@@ -118,6 +120,7 @@ class ShortURLListCreateAPIView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
     @extend_schema(
+        auth=[],
         summary="Create a shortened URL",
         description=(
             "Shortens an original URL. Supports optional custom short "
@@ -200,6 +203,7 @@ class ShortURLDetailUpdateDeleteAPIView(APIView):
             raise LinkNotFoundException()
 
     @extend_schema(
+        operation_id="url_retrieve",
         summary="Retrieve short URL details",
         description=(
             "Returns metadata for a specific short link. Must be owned "
@@ -318,6 +322,7 @@ class RedirectShortURLView(APIView):
     permission_classes = (AllowAny,)
 
     @extend_schema(
+        auth=[],
         summary="Resolve and redirect",
         description=(
             "Resolves a short code to its original destination and issues "

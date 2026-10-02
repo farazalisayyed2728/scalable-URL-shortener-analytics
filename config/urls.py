@@ -1,12 +1,11 @@
 from django.contrib import admin
 from django.urls import include, path, re_path
-from apps.links.views import RedirectShortURLView
-
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+
 from apps.links.views import RedirectShortURLView
 
 urlpatterns = [
@@ -19,14 +18,19 @@ urlpatterns = [
 
     # OpenAPI Schema and Interactive Documentation Views
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
-    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
-
-  
-
-re_path(
-    r"^(?P<short_code>[A-Za-z0-9_-]{3,32})/?$",
-    RedirectShortURLView.as_view(),
-    name="short-url-redirect",
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
+    path(
+        "api/redoc/",
+        SpectacularRedocView.as_view(url_name="schema"),
+        name="redoc",
+    ),
+    re_path(
+        r"^(?P<short_code>[A-Za-z0-9_-]{3,32})/?$",
+        RedirectShortURLView.as_view(),
+        name="short-url-redirect",
     ),
 ]
