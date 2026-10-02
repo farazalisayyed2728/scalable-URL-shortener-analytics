@@ -35,6 +35,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "drf_spectacular",
 ]
 
 # 1. Update LOCAL_APPS to include apps.core
@@ -126,7 +127,11 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    
+    "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPageNumberPagination",
+    "PAGE_SIZE": PAGE_SIZE_DEFAULT,
     "EXCEPTION_HANDLER": "apps.core.exceptions.custom_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SIMPLE_JWT = {
@@ -321,5 +326,29 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "ShortLink Scalable Backend API",
+    "DESCRIPTION": (
+        "High-performance, production-grade URL shortening and real-time analytics backend.\n\n"
+        "Features Redis cache-aside resolution, atomic rate limiting, concurrency protection, "
+        "asynchronous telemetry ingestion via Celery, and comprehensive observability."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    # Configure JWT Bearer authorization in Swagger UI
+    "SECURITY": [{"BearerAuth": []}],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "Enter your JWT Access Token (e.g. from /api/auth/login/).",
+            }
+        }
     },
 }
