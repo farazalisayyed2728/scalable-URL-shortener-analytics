@@ -8,6 +8,13 @@ from drf_spectacular.views import (
 
 from apps.links.views import RedirectShortURLView
 
+from apps.core.views import (
+    HealthCheckAPIView,
+    LivenessProbeAPIView,
+    ReadinessProbeAPIView,
+)
+from apps.links.views import RedirectShortURLView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
 
@@ -15,6 +22,11 @@ urlpatterns = [
     path("api/auth/", include("apps.accounts.urls")),
     path("api/", include("apps.analytics.urls")),
     path("api/", include("apps.links.urls")),
+
+    # Infrastructure Health & Lifecycle Probes (No Auth Required)
+    path("health/", HealthCheckAPIView.as_view(), name="health-check"),
+    path("health/liveness/", LivenessProbeAPIView.as_view(), name="health-liveness"),
+    path("health/readiness/", ReadinessProbeAPIView.as_view(), name="health-readiness"),
 
     # OpenAPI Schema and Interactive Documentation Views
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
