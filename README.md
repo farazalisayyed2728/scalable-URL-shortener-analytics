@@ -53,7 +53,9 @@ docker compose up --build -d
 ```
 
 This starts PostgreSQL, Redis, the web service, and a Celery worker. The API is
-available at `http://localhost:8000`. Check dependency readiness at
+available at `http://localhost:8000`. Compose publishes the web, database,
+and Redis ports on loopback only; this is a local-development configuration.
+Check dependency readiness at
 `http://localhost:8000/health/readiness/`.
 
 To stop the services:
@@ -138,7 +140,10 @@ include:
 | `CODE_LENGTH` | Length for generated short codes |
 
 Docker Compose overrides database and Redis hostnames for container-to-container
-connections.
+connections. The database password is read from `POSTGRES_PASSWORD`; use a
+unique, strong value in your local `.env`, and never use the example password
+outside local development. If you replace it, update the password in
+`DATABASE_URL` too so host-run Django uses the same database credential.
 
 ## Rate limiting and telemetry notes
 
@@ -162,6 +167,12 @@ an event is not reflected in analytics. See [ADR-001](docs/adrs/ADR-001-async-te
   non-owned links are reported as not found.
 - Production settings disable debug mode, enforce HTTPS redirection, set secure
   cookie options, configure HSTS, and deny framing.
+- The Docker image defaults to `config.settings.prod`. Docker Compose
+  explicitly selects `config.settings.dev` for local HTTP use; for a real
+  deployment, set `DJANGO_SETTINGS_MODULE=config.settings.prod`, provide a
+  strong Django secret and database password, configure allowed hosts, and
+  terminate HTTPS at a trusted ingress. Do not expose the development Compose
+  profile directly to the internet.
 - Proxy-aware client IP parsing is configurable. Configure trusted proxy count
   correctly before relying on forwarded IPs for rate limiting.
 

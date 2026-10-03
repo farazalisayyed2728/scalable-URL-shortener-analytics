@@ -18,7 +18,9 @@ if os.path.exists(env_file):
 
 # Core Security
 SECRET_KEY = env("DJANGO_SECRET_KEY")
+
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
+
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 # Application definition

@@ -26,6 +26,8 @@ FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
+ENV DJANGO_SETTINGS_MODULE=config.settings.prod
+
 # Install ONLY runtime shared libraries (libpq for PostgreSQL driver)
 # netcat-openbsd is used by entrypoint.sh to poll database sockets
 RUN apt-get update && apt-get install -y --no-install-recommends \

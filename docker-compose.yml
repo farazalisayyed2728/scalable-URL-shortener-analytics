@@ -4,15 +4,15 @@ services:
     container_name: shortlink_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: shortlink_db
-      POSTGRES_USER: shortlink_user
-      POSTGRES_PASSWORD: shortlink_pass
+      POSTGRES_DB: ${POSTGRES_DB:-shortlink_db}
+      POSTGRES_USER: ${POSTGRES_USER:-shortlink_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U shortlink_user -d shortlink_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "no", "--save", ""]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -43,16 +43,16 @@ services:
     env_file:
       - .env
     environment:
-      # Override hostnames to use internal Docker DNS aliases
-      - DATABASE_URL=postgres://shortlink_user:shortlink_pass@db:5432/shortlink_db
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - DB_HOST=db
-      - DB_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.dev}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shortlink_user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-shortlink_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -67,18 +67,18 @@ services:
       dockerfile: Dockerfile
     container_name: shortlink_worker
     restart: unless-stopped
-    # Override CMD to launch Celery worker instead of Gunicorn
     command: ["celery", "-A", "config", "worker", "-l", "info"]
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgres://shortlink_user:shortlink_pass@db:5432/shortlink_db
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - DB_HOST=db
-      - DB_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.dev}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shortlink_user}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-shortlink_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       db:
         condition: service_healthy
