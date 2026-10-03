@@ -1,29 +1,58 @@
-# ADR-001: Asynchronous Click Ingestion & Eventual Consistency
+# ADR-001: Asynchronous Click Ingestion and Eventual Consistency
 
 ## Status
+
 Accepted
 
 ## Context
-A URL shortener's traffic profile is heavily skewed toward reads: over 90% of requests are redirects (`GET /<short_code>`). Target latency for redirects is under 15ms.
 
-Each redirect requires capturing client analytics: IP address, User-Agent (device, OS, browser), referrer, timestamp, and incrementing the total click counter.
-
-Synchronous database writes (`INSERT INTO analytics_click`) introduce several problems:
-1. Disk I/O and row-level locks inflate redirect response times to 25–60ms.
-2. Under viral traffic spikes (e.g., 5,000 req/sec), PostgreSQL connection pools become exhausted, causing subsequent redirect requests to fail with HTTP 504 Gateway Timeouts.
+Every successful short-code redirect can produce a click record containing the
+short code, event ID, timestamp, client IP, User-Agent, and referrer. User-Agent
+metadata is enriched by the analytics worker. Persisting the event inline with
+the redirect would add database work to a response whose primary purpose is to
+send the visitor to the destination.
 
 ## Decision
-We decouple the redirect response path from telemetry writes using an asynchronous task pipeline:
-1. The web server resolves the destination via Redis (Cache-Aside), enqueues a `record_click_event` message to Redis (DB 1), and immediately returns `302 Found`.
-2. A separate Celery worker consumes the task, enriches the User-Agent, inserts the record, and increments `ShortURL.total_clicks` using an atomic `F()` expression.
-3. If the Celery broker is unreachable, the task enqueue operation is caught and swallowed; telemetry failure must never degrade client redirection.
+
+The redirect view resolves the destination, creates a UUID event ID, submits a
+`record_click_event` task to Celery, and returns an HTTP 302 without waiting for
+the task to finish. Redis database 1 is the default Celery broker; Redis
+database 0 is used for the URL cache.
+
+The worker enriches the User-Agent, inserts a click row, and increments
+`ShortURL.total_clicks` using a database `F()` expression. The event ID has a
+unique database constraint to guard against duplicate task delivery. Celery
+tasks use late acknowledgement and retry failures up to three times with
+jittered delays.
+
+If task submission raises an exception, the redirect is still returned and a
+warning is logged. After task retries are exhausted, the task failure hook
+logs a critical quarantine-style record. It does not persist the failed event
+to a durable dead-letter queue.
 
 ## Consequences
-### Positive
-- Sub-5ms redirect responses under high concurrency.
-- Database write spikes are smoothed by the broker queue (load leveling).
-- Fault isolation: database slowdowns do not block HTTP redirect threads.
 
-### Negative / Trade-offs
-- Analytics dashboards display eventual consistency (50–500ms delay between click and dashboard visibility).
-- Requires operating and monitoring a background worker pool and Celery task broker.
+### Positive
+
+- Database ingestion does not block the redirect response.
+- Broker buffering can absorb short-lived differences between click arrival
+  and worker throughput.
+- Unique event IDs and atomic counter expressions help prevent duplicate
+  counts and lost increments during concurrent processing.
+
+### Negative and trade-offs
+
+- Click analytics are eventually consistent and may not include the latest
+  redirect immediately.
+- If the broker is unavailable at enqueue time, the redirect succeeds but its
+  event is not queued.
+- If worker retries are exhausted, the failure is logged but no durable
+  dead-letter queue currently retains the event.
+- Click creation and counter increment are separate database operations, not a
+  single transaction; failure between them can leave the record and denormalized
+  count inconsistent until reconciled.
+- The design requires operating and monitoring a Celery worker and Redis
+  broker.
+
+No latency or throughput target is recorded here because the repository does
+not include reproducible benchmark results for those figures.
