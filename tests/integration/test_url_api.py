@@ -48,6 +48,7 @@ class TestURLAPILifecycle:
         data = response.json()
         assert data["short_code"] == "fastapi_docs"
         assert data["is_custom"] is True
+        assert data["total_clicks"] == 0
 
         # Confirm ownership in database
         link = ShortURL.objects.get(short_code="fastapi_docs")

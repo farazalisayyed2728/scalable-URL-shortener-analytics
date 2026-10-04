@@ -32,6 +32,7 @@ class ShortURLResponseSerializer(serializers.Serializer):
     short_url = serializers.SerializerMethodField()
     original_url = serializers.CharField(read_only=True)
     is_custom = serializers.BooleanField(read_only=True)
+    total_clicks = serializers.IntegerField(read_only=True)
     expires_at = serializers.DateTimeField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
 

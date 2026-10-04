@@ -30,6 +30,7 @@ STANDARD_LOG_RECORD_ATTRS = {
     "process",
     "processName",
     "relativeCreated",
+    "request",
     "stack_info",
     "thread",
     "threadName",
