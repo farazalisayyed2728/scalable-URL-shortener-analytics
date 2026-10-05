@@ -35,7 +35,7 @@ class TestCacheResilienceAndGracefulDegradation:
 
     def test_redis_set_failure_does_not_break_execution(self):
         """Verify that a RedisError on cache write logs a warning but does not raise an exception."""
-        with patch("redis.Redis.setex", side_effect=redis.TimeoutError("Redis socket write timeout")):
+        with patch("redis.Redis.set", side_effect=redis.TimeoutError("Redis socket write timeout")):
             # Must not raise an exception
             cache_url(
                 short_code="fail_set",
@@ -52,18 +52,18 @@ class TestCacheResilienceAndGracefulDegradation:
             }
 
     def test_negative_cache_is_written(self):
-        with patch("redis.Redis.setex") as setex:
+        with patch("redis.Redis.set") as set_value:
             cache_not_found("missing_code")
 
-        setex.assert_called_once_with(
+        set_value.assert_called_once_with(
             "short:missing_code",
-            settings.NEGATIVE_CACHE_TTL_SECONDS,
             settings.NEGATIVE_CACHE_SENTINEL,
+            ex=settings.NEGATIVE_CACHE_TTL_SECONDS,
         )
 
     def test_negative_cache_failure_logs_warning(self, caplog):
         with patch(
-            "redis.Redis.setex",
+            "redis.Redis.set",
             side_effect=redis.TimeoutError("Redis socket write timeout"),
         ):
             cache_not_found("missing_code")

@@ -8,7 +8,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.core.serializers import ErrorEnvelopeSerializer
 
-from .serializers import UserRegistrationSerializer, UserResponseSerializer
+from .serializers import (
+    UserRegistrationSerializer,
+    UserResponseSerializer,
+    UserTokenRefreshSerializer,
+)
 
 
 class UserRegisterAPIView(APIView):
@@ -55,4 +59,4 @@ class UserTokenObtainPairAPIView(TokenObtainPairView):
     auth=[],
 )
 class UserTokenRefreshAPIView(TokenRefreshView):
-    pass
+    serializer_class = UserTokenRefreshSerializer

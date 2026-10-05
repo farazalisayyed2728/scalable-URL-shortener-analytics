@@ -108,10 +108,10 @@ def cache_url(
     )
 
     try:
-        redis_client.setex(
+        redis_client.set(
             key,
-            ttl,
             json.dumps(payload),
+            ex=ttl,
         )
 
     except redis.RedisError as exc:
@@ -129,10 +129,10 @@ def cache_not_found(short_code: str):
     key = build_short_url_cache_key(short_code)
 
     try:
-        redis_client.setex(
+        redis_client.set(
             key,
-            settings.NEGATIVE_CACHE_TTL_SECONDS,
             settings.NEGATIVE_CACHE_SENTINEL,
+            ex=settings.NEGATIVE_CACHE_TTL_SECONDS,
         )
 
     except redis.RedisError as exc:
